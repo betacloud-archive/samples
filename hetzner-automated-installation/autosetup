@@ -1,0 +1,16 @@
+DRIVE1 /dev/sda
+DRIVE2 /dev/sdb
+
+SWRAID 1
+SWRAIDLEVEL 1
+
+BOOTLOADER grub
+HOSTNAME bootstrap
+
+PART swap swap 32G
+PART /boot ext3 512M
+PART / xfs 256G
+PART lvm system all
+LV system bootstrap /opt/bootstrap  xfs 1G
+
+IMAGE /root/.oldroot/nfs/install/../images/Ubuntu-1404-trusty-64-minimal.tar.gz

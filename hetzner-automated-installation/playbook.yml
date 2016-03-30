@@ -1,0 +1,153 @@
+---
+- hosts: all
+  gather_facts: no
+
+  vars:
+    hetzner_webservice_username: WEBSERVICE_USERNAME
+    hetzner_webservice_password: WEBSERVICE_PASSWORD
+    debug: false
+
+  vars_prompt:
+    - name: confirmation
+      prompt: "Type 'CONFIRMATION' to confirm the installation"
+      private: no
+
+  tasks:
+    - name: check confirmation
+      when:
+        - confirmation != "CONFIRMATION"
+        - debug == false
+      fail:
+        msg: "Confirmation missing. Please confirm first."
+
+    - name: get ip address of inventory_hostname 
+      shell: host {{ inventory_hostname }} | grep 'has address' | awk '{ print $4 }' 
+      register: result_host
+      delegate_to: 127.0.0.1
+
+    - name: set hetzner_server_ip_address fact
+      set_fact:
+        hetzner_server_ip_address: "{{ result_host.stdout }}"
+
+    - debug: var=hetzner_server_ip_address
+      when: debug == true
+
+    - name: retrieve first public key fingerprint 
+      uri:
+        url: https://robot-ws.your-server.de/key
+        return_content: yes
+        method: GET
+        user: "{{ hetzner_webservice_username }}"
+        password: "{{ hetzner_webservice_password }}"
+        force_basic_auth: yes
+        status_code: 200
+      register: key
+      delegate_to: 127.0.0.1
+
+    - name: set authorized_key_fingerprint fact
+      set_fact:
+        authorized_key_fingerprint: "{{ key.json[0].key.fingerprint }}"
+
+    - name: set authorized_key fact
+      set_fact:
+        authorized_key: "{{ key.json[0].key.data }}"
+
+    - debug: var=key
+      when: debug == true
+
+    - name: check rescue mode
+      uri:
+        url: "https://robot-ws.your-server.de/boot/{{ hetzner_server_ip_address }}/rescue"
+        method: GET
+        user: "{{ hetzner_webservice_username }}"
+        password: "{{ hetzner_webservice_password }}"
+        force_basic_auth: yes
+        status_code: 200
+      register: rescue
+      delegate_to: 127.0.0.1
+
+    - debug: var=rescue
+      when: debug == true
+
+    - name: activate rescue mode
+      when:  rescue.json.rescue.active == false
+      uri:
+        url: "https://robot-ws.your-server.de/boot/{{ hetzner_server_ip_address }}/rescue"
+        method: POST
+        user: "{{ hetzner_webservice_username }}"
+        password: "{{ hetzner_webservice_password }}"
+        force_basic_auth: yes
+        body: "os=linux&arch=64&authorized_key={{ authorized_key_fingerprint }}"
+        status_code: 200
+        HEADER_Content-Type: "application/x-www-form-urlencoded"
+      register: activated
+      delegate_to: 127.0.0.1
+
+    - debug: var=activated
+      when: debug == true
+
+    - name: execute hardware reset
+      uri:
+        url: "https://robot-ws.your-server.de/reset/{{ hetzner_server_ip_address }}"
+        method: POST
+        user: "{{ hetzner_webservice_username }}"
+        password: "{{ hetzner_webservice_password }}"
+        force_basic_auth: yes
+        body: "type=hw"
+        status_code: 200
+        HEADER_Content-Type: "application/x-www-form-urlencoded"
+      register: reset
+      delegate_to: 127.0.0.1
+
+    - debug: var=reset
+      when: debug == true
+
+    - name: remove server from local known_hosts file
+      local_action: command  /usr/bin/ssh-keygen -R {{ inventory_hostname }}
+
+    - name: pause a bit for the hardware reset to kick in
+      pause: seconds=15
+
+    - name: waiting for server to come back
+      local_action: 
+        module: wait_for 
+          host="{{ inventory_hostname }}"
+          port=22 
+          delay=1 
+          timeout=180
+
+    - name: copy autosetup configuration file
+      copy:
+        src: autosetup
+        dest: /autosetup
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: run installimage 
+      command: /root/.oldroot/nfs/install/installimage
+      register: result
+
+    - name: mount root filesystem
+      mount:
+        name: /mnt
+        src: /dev/md2
+        fstype: xfs
+        opts: noatime
+        state: mounted
+
+    - name: set ssh authorized keys
+      authorized_key:
+        key: "{{ authorized_key }}"
+        user: root
+        path: /mnt/root/.ssh/authorized_keys
+        manage_dir: yes
+
+    - name: reboot server
+      command: reboot
+      async: 0
+      poll: 0
+      ignore_errors: true
+
+    - name: remove server from local known_hosts file
+      local_action: command  /usr/bin/ssh-keygen -R {{ inventory_hostname }}

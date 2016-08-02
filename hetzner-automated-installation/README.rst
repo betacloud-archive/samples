@@ -1,7 +1,11 @@
+===========================================
 Hetzner automated installation with Ansible
 ===========================================
 
 This playbook is based on playbooks provided by Marcel Wiget: https://github.com/mwiget/hetzner-ansible.
+
+This sample is used in the article
+`Automatisierter Rollout von Servern bei Hetzner mit Ansible <https://blog.betacloud.io/automatisierter-rollout-bei-hetzner-mit-ansible/>`_.
 
 First set the Hetzner webservice robot credentials. Aftwards run the playbook to install a server.
 

@@ -2,6 +2,9 @@
 Hetzner automated installation with Ansible
 ===========================================
 
+**UNMAINTAINTED** We transformed this playbook into an Ansible role, available at
+https://github.com/betacloud/ansible-hetzner.
+
 This playbook is based on playbooks provided by Marcel Wiget: https://github.com/mwiget/hetzner-ansible.
 
 This sample is used in the article

@@ -1,4 +1,4 @@
 Samples
 =======
 
-This repository contains samples used in the `Betacloud blog <https://blog.betacloud.io>`_.
+This repository contains samples used in the `Betacloud blog <https://betacloud.io/blog/>`_.
